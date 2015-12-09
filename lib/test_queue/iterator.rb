@@ -16,6 +16,7 @@ module TestQueue
     end
 
     def query(payload)
+      puts "#{Time.now.strftime("%H:%M:%S.%6N")} issue request to master #{payload}"
       client = connect_to_master(payload)
       return if client.nil?
       _r, _w, e = IO.select([client], nil, [client], nil)
@@ -27,7 +28,8 @@ module TestQueue
         return if item.nil? || item == ""
         item
       end
-    rescue Errno::ENOENT, Errno::ECONNRESET, Errno::ECONNREFUSED
+    rescue Errno::ENOENT, Errno::ECONNRESET, Errno::ECONNREFUSED => e
+      STDERR.puts "ENCOUNTERED #{e}"
     end
 
     def each
@@ -66,6 +68,7 @@ module TestQueue
       sock.write(cmd)
       sock
     rescue Errno::EPIPE
+      STDERR.puts "ENCOUNTERED Errno::EPIPE"
       nil
     end
 

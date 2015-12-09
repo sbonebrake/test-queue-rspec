@@ -37,6 +37,12 @@ module TestQueue
         end
       end
 
+      def groups_left_in_queue
+        total = 0
+        @group_queues.each { |g, v| total += v.count}
+        total
+      end
+
       def has_examples_in_queue?(group)
         @group_queues[group] && @group_queues[group].any?
       end
@@ -79,7 +85,9 @@ module TestQueue
           # suite queue can empty out while the very last examples are
           # being worked on; wait till they are done so we don't abandon
           # any live workers
-          super && @group_queues.all? { |key, queue| queue.empty? }
+          empty = super && @group_queues.all? { |key, queue| queue.empty? }
+          puts "#{Time.now.strftime("%H:%M:%S.%6N")} QUEUE IS EMPTY" if empty
+          empty
         end
 
         def pop_next
@@ -95,18 +103,24 @@ module TestQueue
           when /^HAS EXAMPLES (\d+)/
             data = sock.read($1.to_i)
             group = Marshal.load(data)
-            sock.write Marshal.dump(has_descendant_examples_in_queue?(group))
+            has_descendant_examples_in_queue = has_descendant_examples_in_queue?(group)
+            puts "#{Time.now.strftime("%H:%M:%S.%6N")} CHECK HAS EXAMPLES FOR GROUP #{group} has_descendant_examples_in_queue?= #{has_descendant_examples_in_queue}"
+            sock.write Marshal.dump(has_descendant_examples_in_queue)
           when /^POP OWN EXAMPLE (\d+)/
             data = sock.read($1.to_i)
             group = Marshal.load(data)
-            if has_examples_in_queue?(group)
+            has_examples_in_queue = has_examples_in_queue?(group)
+            puts "#{Time.now.strftime("%H:%M:%S.%6N")} POP OWN EXAMPLE FOR #{group} has_examples_in_queue? = #{has_examples_in_queue}"
+            if has_examples_in_queue
               example = @group_queues[group].shift
+              puts "#{Time.now.strftime("%H:%M:%S.%6N")} #{groups_left_in_queue} EXAMPLES LEFT IN QUEUE"
               sock.write Marshal.dump(example.full_description)
             end
           when /^POP/
             if obj = pop_next
               data = Marshal.dump(obj.to_s)
               sock.write(data)
+              puts "#{Time.now.strftime("%H:%M:%S.%6N")} POPPING    #{data}"
               # differs from the original in that we immediately put it
               # right back at the end of the queue, so that anyone who
               # finishes early can come help
